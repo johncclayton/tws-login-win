@@ -1,10 +1,13 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    Tests, then publishes tws-login-win as one self-contained win-x64 exe with its SHA256SUMS.
+    Tests, then publishes tws-login-win as two single-file win-x64 exes, with their SHA256SUMS.
 .DESCRIPTION
-    Output: artifacts\tws-login-win.exe and artifacts\SHA256SUMS (sha256sum format). The same steps run in
-    .github\workflows\release.yml.
+    Output in artifacts\:
+      tws-login-win.exe        self-contained (about 37 MB): runs on any Windows x64, no .NET needed
+      tws-login-win-net10.exe  framework-dependent (a few hundred KB): needs the .NET 10 runtime (x64)
+      SHA256SUMS               both hashes, sha256sum format
+    The same steps run in .github\workflows.
 #>
 [CmdletBinding()]
 param(
@@ -14,21 +17,32 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $artifacts = Join-Path $root 'artifacts'
 $publish = Join-Path $artifacts 'publish'
+$project = Join-Path $root 'src/tws-login-win/tws-login-win.csproj'
+$exe = Join-Path $artifacts 'tws-login-win.exe'
+$net10 = Join-Path $artifacts 'tws-login-win-net10.exe'
 
 if (-not $SkipTests) {
     dotnet test (Join-Path $root 'tws-login-win.sln') -c Release
     if ($LASTEXITCODE) { throw "tests failed ($LASTEXITCODE)" }
 }
 
-Remove-Item $publish -Recurse -Force -ErrorAction SilentlyContinue
-dotnet publish (Join-Path $root 'src\tws-login-win\tws-login-win.csproj') -c Release -o $publish
-if ($LASTEXITCODE) { throw "publish failed ($LASTEXITCODE)" }
+Remove-Item $publish, $exe, $net10 -Recurse -Force -ErrorAction SilentlyContinue
 
-$exe = Join-Path $artifacts 'tws-login-win.exe'
-Copy-Item (Join-Path $publish 'tws-login-win.exe') $exe -Force
-$hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-[IO.File]::WriteAllText((Join-Path $artifacts 'SHA256SUMS'), "$hash  tws-login-win.exe`n")
+dotnet publish $project -c Release -o (Join-Path $publish 'self-contained')
+if ($LASTEXITCODE) { throw "self-contained publish failed ($LASTEXITCODE)" }
+Copy-Item (Join-Path $publish 'self-contained/tws-login-win.exe') $exe
 
-& $exe --version
-if ($LASTEXITCODE) { throw "the published exe did not run ($LASTEXITCODE)" }
-Write-Host "$exe`n$hash"
+dotnet publish $project -c Release -o (Join-Path $publish 'net10') -p:SelfContained=false -p:EnableCompressionInSingleFile=false
+if ($LASTEXITCODE) { throw "framework-dependent publish failed ($LASTEXITCODE)" }
+Copy-Item (Join-Path $publish 'net10/tws-login-win.exe') $net10
+
+$sums = foreach ($file in $exe, $net10) {
+    "$((Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant())  $(Split-Path $file -Leaf)"
+}
+[IO.File]::WriteAllText((Join-Path $artifacts 'SHA256SUMS'), ($sums -join "`n") + "`n")
+
+foreach ($file in $exe, $net10) {
+    & $file --version
+    if ($LASTEXITCODE) { throw "$file did not run ($LASTEXITCODE)" }
+}
+Get-Content (Join-Path $artifacts 'SHA256SUMS')

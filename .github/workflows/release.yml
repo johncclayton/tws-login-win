@@ -27,16 +27,19 @@ jobs:
           if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME does not match version $version" }
       - run: ./build/publish.ps1
         shell: pwsh
+      - run: Copy-Item CHANGELOG.md artifacts/ # one folder, so the files download side by side
+        shell: pwsh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release
           path: |
             artifacts/tws-login-win.exe
+            artifacts/tws-login-win-net10.exe
             artifacts/SHA256SUMS
-            CHANGELOG.md
+            artifacts/CHANGELOG.md
 
   release:
-    # Runs none of the project's code: only attests the built exe and drafts the release.
+    # Runs none of the project's code: only attests the built exes and drafts the release.
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -47,14 +50,16 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release
-      - name: SHA256SUMS matches the exe
+      - name: SHA256SUMS matches the exes
         run: sha256sum -c SHA256SUMS
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: tws-login-win.exe
+          subject-path: |
+            tws-login-win.exe
+            tws-login-win-net10.exe
       - name: Draft the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create "$GITHUB_REF_NAME" tws-login-win.exe SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" tws-login-win.exe tws-login-win-net10.exe SHA256SUMS
           --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes-file CHANGELOG.md --draft --verify-tag

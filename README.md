@@ -31,6 +31,8 @@ These steps log a **paper** account in. They take about ten minutes, most of it 
    ```
 
    It is one self-contained file: no .NET install needed. Put it anywhere, e.g. `C:\Tools\tws-login-win.exe`.
+   (`tws-login-win-net10.exe` is the same program in about 300 KB, for machines that already have the
+   [.NET 10 runtime](https://dotnet.microsoft.com/download/dotnet/10.0); rename it to `tws-login-win.exe` if you like.)
 
 2. **Install the 1Password CLI** and sign it in (the 1Password app's *Settings → Developer → Integrate with
    1Password CLI* is the easiest way):
@@ -271,7 +273,7 @@ interface, and can enter the one-time code from 1Password. It reads IBC's ini ke
 
 ```powershell
 dotnet test                                  # about 150 tests; no TWS needed
-.\build\publish.ps1                          # artifacts\tws-login-win.exe and artifacts\SHA256SUMS
+.\build\publish.ps1                          # artifacts\: tws-login-win.exe, tws-login-win-net10.exe, SHA256SUMS
 ```
 
 Design notes: [GLOSSARY.md](GLOSSARY.md) (terms), [docs/adr](docs/adr) (decisions),

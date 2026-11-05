@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-05)
 
 First public version, extracted from a private automation repository.
 
@@ -18,4 +18,5 @@ First public version, extracted from a private automation repository.
   starting or ending with a space.
 - `login-windows` writes its log to stderr; stdout holds only the `<pid> <screen>` lines.
 - `--version` and `--help`; running with no command prints the usage (it used to run `inspect`).
-- Released as one self-contained `win-x64` exe with `SHA256SUMS`.
+- Released as two single-file `win-x64` exes, with `SHA256SUMS` and build provenance: `tws-login-win.exe`
+  (self-contained) and `tws-login-win-net10.exe` (needs the .NET 10 runtime).

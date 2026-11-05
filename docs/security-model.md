@@ -140,7 +140,7 @@ Releases are built by GitHub Actions from a tagged commit, and carry a `SHA256SU
 [build provenance attestation](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations):
 
 ```powershell
-gh attestation verify tws-login-win.exe --repo <owner>/tws-login-win
+gh attestation verify tws-login-win.exe --repo johncclayton/tws-login-win
 ```
 
 The exe is not Authenticode-signed, so Windows SmartScreen may warn the first time you run it. Building from source

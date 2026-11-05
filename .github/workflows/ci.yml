@@ -26,6 +26,7 @@ jobs:
           name: tws-login-win
           path: |
             artifacts/tws-login-win.exe
+            artifacts/tws-login-win-net10.exe
             artifacts/SHA256SUMS
 
   secrets:
