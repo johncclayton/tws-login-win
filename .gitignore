@@ -1,0 +1,13 @@
+bin/
+obj/
+artifacts/
+TestResults/
+*.user
+.vs/
+.vscode/
+.idea/
+*.log
+# Never commit credentials
+*.ini
+!docs/examples/*.ini
+.env*

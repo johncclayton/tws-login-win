@@ -1,0 +1,35 @@
+name: release
+
+# Push a tag v<version> matching <Version> in src/tws-login-win/tws-login-win.csproj.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write      # create the release
+  id-token: write      # sign the provenance attestation
+  attestations: write  # store it
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Tag matches the project version
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content src/tws-login-win/tws-login-win.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME does not match version $version" }
+      - run: ./build/publish.ps1
+        shell: pwsh
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/tws-login-win.exe
+      - name: Create the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME artifacts/tws-login-win.exe artifacts/SHA256SUMS --title $env:GITHUB_REF_NAME --notes-file CHANGELOG.md --draft
