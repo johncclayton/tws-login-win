@@ -54,8 +54,20 @@ sealed class MessagePumpingClock : IClock
     public void Sleep(TimeSpan duration) => Win32.PumpMessages(duration);
 }
 
-/// <summary>Time-stamped lines on <paramref name="output"/>.</summary>
+/// <summary>
+/// Time-stamped lines on <paramref name="output"/>. Once a login's user name is known it is replaced by
+/// <c>[user]</c> in every line, wherever TWS might show it (a window title, a dialog).
+/// </summary>
 sealed class ConsoleLog(TextWriter output) : ILog
 {
-    public void Info(string message) => output.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] {message}");
+    string? _user;
+
+    /// <summary>From now on, <paramref name="user"/> never appears in a line (ignoring case).</summary>
+    public void RedactUser(string user) => _user = user.Length >= 3 ? user : null;
+
+    public void Info(string message) =>
+        output.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] {Redacted(message, _user)}");
+
+    public static string Redacted(string message, string? user) =>
+        user is null ? message : message.Replace(user, "[user]", StringComparison.OrdinalIgnoreCase);
 }

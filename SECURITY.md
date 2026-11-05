@@ -10,7 +10,8 @@ Please **do not open a public issue**. Use GitHub's private reporting instead: t
 aims to answer within a week.
 
 Never include real credentials, one-time-password secrets, account numbers or unredacted TWS screenshots in a
-report. The output of `tws-login-win watch` and `inspect` is already redacted and safe to share.
+report. The output of `tws-login-win watch` and `inspect` is made to be shared (typed text by length, digits masked), but
+read it before posting: TWS may show your name or other details in a label.
 
 ## Supported versions
 
@@ -22,6 +23,7 @@ In scope: anything that makes the tool reveal a user name, password, one-time co
 messages, files or memory it controls); send credentials to a program other than a trusted TWS; or press, set or
 accept something in TWS that its documentation says it never does.
 
-Out of scope: attacks that need code already running as the same Windows user with more access than a window (it
-can read the 1Password token or ini file directly), and the deliberate trade-off of storing the second factor in
-1Password. Both are described in [docs/security-model.md](docs/security-model.md).
+Out of scope: the residual risks listed under "What the check does not stop" in the security model (code already
+running as the same Windows user that changes TWS's own files, answers through the Java Access Bridge, patches
+process memory, or reads the 1Password token or ini file directly), and the deliberate trade-off of storing the
+second factor in 1Password. Both are described in [docs/security-model.md](docs/security-model.md).

@@ -7,7 +7,7 @@ Open an issue with:
 - `tws-login-win --version`, your TWS version (Help → About) and Windows version;
 - the tool's full output, which never holds credentials (check it anyway before posting);
 - for a screen it did not recognise: the output of `tws-login-win watch` while you go through that screen by hand.
-  It shows controls with typed text by length only and digits masked.
+  It shows controls with typed text by length only and digits masked; still, read it before posting.
 
 Never post credentials, one-time-password secrets, account numbers or screenshots of TWS. Security problems go to
 [SECURITY.md](SECURITY.md), not an issue.

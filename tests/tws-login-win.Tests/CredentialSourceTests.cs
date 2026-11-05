@@ -356,4 +356,34 @@ public sealed class CredentialSourceTests : IDisposable
             Assert.DoesNotContain("123456", text);
         }
     }
+
+    [Fact]
+    public void Op_is_found_only_in_fully_qualified_PATH_folders()
+    {
+        var bin = Directory.CreateDirectory(Path.Combine(_folder, "bin")).FullName;
+        File.WriteAllBytes(Path.Combine(bin, "op.exe"), [0x4D, 0x5A]);
+        var here = Directory.GetCurrentDirectory();
+
+        Assert.Equal(Path.Combine(bin, "op.exe"), OpCli.Find($@".;relative\dir;""{bin}"";C:\nowhere"));
+        Assert.Null(OpCli.Find(@".;.\bin"));
+        Assert.Null(OpCli.Find(null));
+        Assert.Equal(here, Directory.GetCurrentDirectory());
+    }
+
+    [Theory]
+    [InlineData(true, "Agilebits", true)]
+    [InlineData(true, "AgileBits Inc.", true)]
+    [InlineData(true, "Someone Else", false)]
+    [InlineData(false, "Agilebits", false)]
+    public void Op_must_be_validly_signed_by_AgileBits(bool valid, string organization, bool trusted)
+    {
+        Assert.Equal(trusted, OpCli.IsPublisher(new Signature(valid, organization, "")));
+    }
+
+    [Fact]
+    public void The_user_name_never_appears_in_a_log_line_once_known()
+    {
+        Assert.Equal("dialog: welcome [user] / [user]", ConsoleLog.Redacted("dialog: welcome jdoe42 / JDOE42", "jdoe42"));
+        Assert.Equal("nothing to hide", ConsoleLog.Redacted("nothing to hide", null));
+    }
 }

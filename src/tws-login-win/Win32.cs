@@ -14,7 +14,6 @@ static class Win32
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, StringBuilder text, int max);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, StringBuilder name, int max);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern bool SetDllDirectory(string path);
     [DllImport("user32.dll")] static extern bool PeekMessage(out Msg message, IntPtr window, uint min, uint max, uint remove);
     [DllImport("user32.dll")] static extern bool TranslateMessage(ref Msg message);
     [DllImport("user32.dll")] static extern IntPtr DispatchMessage(ref Msg message);

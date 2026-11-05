@@ -187,7 +187,7 @@ tws-login-win <command> [options]
 | `--mode paper\|live` | aborts before sending anything unless the credentials are for this mode |
 | `--pid n` | only TWS process `n` counts, so another TWS's Login window is never taken; aborts within about a second once `n` exits |
 | `--existing` | with `--pid`: judges `n`'s Login window once instead of waiting; aborts unless it shows the Login form |
-| `--trust-unsigned` | also drives a TWS whose executable is not signed by Interactive Brokers. **Unsafe**: see [Security model](docs/security-model.md#which-tws-gets-the-credentials) |
+| `--trust-unsigned` | also drives a TWS not signed by Interactive Brokers, and runs an `op` not signed by AgileBits. **Unsafe**: see [Security model](docs/security-model.md#which-tws-gets-the-credentials) |
 
 **Exit codes:** `0` done (`login-windows`: also with none listed), `1` aborted (the last line is
 `ABORT: <reason>`), `2` usage error. With its output redirected, the tool writes UTF-8.
@@ -240,6 +240,7 @@ Every failure ends with `ABORT: <reason>`. The common ones:
 | `ignoring pid … not by 'Interactive Brokers Group, Inc.'` (logged before) | the window belongs to a program not signed by IBKR: see [Security model](docs/security-model.md#which-tws-gets-the-credentials) |
 | `TWS_LOGIN_PAPER_1PASSWORD_ITEM is not set` | set it (step 4 of the quick start) and open a new terminal |
 | `1Password CLI 'op' not found on PATH` | install it and open a new terminal |
+| `op.exe … not by 'AgileBits'` | the first `op.exe` on `PATH` is not 1Password's: remove it or reorder `PATH` |
 | `op item get … failed` | the reason from `op` follows: not signed in, wrong vault or item name, or no access |
 | `has no field 'username'` / `has 'username' as a website entry` | add or rename the field as in [The 1Password item](#the-1password-item) |
 | `is live but has no field of type OTP` | add the one-time password field, or log in with an ini file and type the code |
@@ -269,7 +270,7 @@ interface, and can enter the one-time code from 1Password. It reads IBC's ini ke
 ## Building from source
 
 ```powershell
-dotnet test                                  # 130+ tests; no TWS needed
+dotnet test                                  # about 150 tests; no TWS needed
 .\build\publish.ps1                          # artifacts\tws-login-win.exe and artifacts\SHA256SUMS
 ```
 

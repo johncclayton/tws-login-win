@@ -41,18 +41,46 @@ anything reads them, and logged once:
 ignoring pid 4242 (C:\Users\me\Downloads\tws.exe): not validly signed: no signature, not by 'Interactive Brokers Group, Inc.'. ...
 ```
 
-The Java Access Bridge DLL is then loaded only from that trusted TWS's own `jre\bin`, and only if it too is validly
-signed (TWS's Java runtime is signed by its vendor, currently Azul Systems).
+How the executable is found matters as much as the signature:
+
+- Its path comes from Windows (`QueryFullProcessImageName`), not from the process's own memory, which the process
+  could rewrite. Windows follows renames: a program that renames its running executable and puts a copy of the
+  signed TWS at the old path is judged by its own, renamed, unsigned file.
+- The file mapped at the process's image base must be that same file (same volume and file id).
+- The file is held open while it is judged, so it cannot be changed, renamed or replaced meanwhile, and the signer
+  is read from the same verification rather than from the file a second time.
+- A process is judged once per process start; its executable cannot change while it runs.
+
+The Java Access Bridge DLL is loaded only from that trusted TWS's own `jre\bin`, only if it too is validly signed
+(TWS's Java runtime is signed by its vendor, currently Azul Systems), held open from the check until it is loaded,
+and with its own dependencies taken from its folder or System32 only.
+
+**`op`**, the 1Password CLI, is looked for only in the folders on `PATH`, never in the current folder or the
+tool's own (where a download could plant an `op.exe` that would receive `OP_SERVICE_ACCOUNT_TOKEN`), and must be
+validly signed by AgileBits.
 
 Revocation is checked from Windows' local cache only, never fetched from the network: a slow or absent network
 never blocks a login. A revocation status not in the cache is accepted.
 
-`--trust-unsigned` turns both checks off and says so in the log. Use it only to try a TWS build you obtained from
-IBKR that is somehow not signed, never routinely.
+`--trust-unsigned` turns all of these signature checks off and says so in the log. Use it only to try a TWS build
+you obtained from IBKR that is somehow not signed, never routinely.
 
-What the check does **not** stop: a program running as your Windows user can do almost anything you can, e.g. read
-`OP_SERVICE_ACCOUNT_TOKEN` from your environment, read an ini file, or inject into the real TWS. The signature check
-closes the cheap attack (a look-alike window); it is not a sandbox. Keep the machine itself clean.
+### What the check does not stop
+
+A program already running as your Windows user can do almost anything you can. The signature check makes the
+cheap attack (a look-alike window named `tws.exe`) fail; it is not a sandbox, and these remain open to such a
+program:
+
+- reading `OP_SERVICE_ACCOUNT_TOKEN` from your environment, or an ini file;
+- **changing the real TWS**: `C:\Jts` is normally writable by your user, so a program can edit TWS's
+  `.vmoptions` file or its jars (e.g. add a Java agent), and the signed `tws1.exe` then runs its code;
+- **answering for TWS through the bridge**: the Java Access Bridge finds Java programs through window messages, and
+  a program that speaks its protocol could, in principle, answer for TWS's window. There is no Windows API to tell
+  which process answered;
+- patching another process's memory, or its own to look like TWS.
+
+Keep the machine itself clean, keep the token out of the permanent environment where you can (below), and consider
+installing TWS where your user cannot write (and keeping it updated by hand) if that matters to you.
 
 The decision and its trade-offs: [ADR 0002](adr/0002-trust-only-ibkr-signed-tws.md).
 
@@ -116,4 +144,5 @@ gh attestation verify tws-login-win.exe --repo <owner>/tws-login-win
 ```
 
 The exe is not Authenticode-signed, so Windows SmartScreen may warn the first time you run it. Building from source
-(`build\publish.ps1`) gives the same program.
+(`build\publish.ps1`, with the SDK pinned in `global.json` and packages pinned in `packages.lock.json`) gives the
+same program, though not necessarily a byte-identical file.

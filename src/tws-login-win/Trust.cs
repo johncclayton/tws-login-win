@@ -17,13 +17,23 @@ public interface ISignatures
     Signature Check(string path);
 }
 
-/// <summary>A running process's identity: its executable, and when it started (a process id can be reused).</summary>
-public sealed record ProcessImage(string ExePath, DateTime StartTime);
+/// <summary>
+/// A running process's executable, and when the process started (a process id can be reused). <see cref="Problem"/>
+/// says why the file at <see cref="ExePath"/> cannot stand for the process, e.g. it is not the file the process runs
+/// from; null when it can. Until disposed, the file is held so it cannot be replaced while it is judged.
+/// </summary>
+public sealed record ProcessImage(string ExePath, DateTime StartTime, string? Problem = null, Action? Release = null) : IDisposable
+{
+    public void Dispose() => Release?.Invoke();
+}
 
 /// <summary>Finds a running process's executable.</summary>
 public interface IProcessImages
 {
-    /// <summary>The process's image; null when it is not running or cannot be opened.</summary>
+    /// <summary>When the process started; null when it is not running or cannot be opened. Cheap: asked on every look.</summary>
+    DateTime? StartTime(int processId);
+
+    /// <summary>The process's image, held until disposed; null when it is not running or cannot be opened.</summary>
     ProcessImage? Find(int processId);
 }
 
@@ -57,18 +67,21 @@ public static class TrustedTws
 
         bool Trusted(int processId)
         {
-            var image = images.Find(processId);
-            if (image is null)
+            // A process's image never changes while it runs, so one judgement lasts as long as the process.
+            if (images.StartTime(processId) is not { } started)
                 return false; // gone, or not openable: nothing can be checked, so nothing is sent
-            if (_judged.TryGetValue(processId, out var judged) && judged.Started == image.StartTime)
+            if (_judged.TryGetValue(processId, out var judged) && judged.Started == started)
                 return judged.Trusted;
-            var signature = signatures.Check(image.ExePath);
-            var trusted = IsPublisher(signature);
+            using var image = images.Find(processId);
+            if (image is null)
+                return false;
+            var signature = image.Problem is null ? signatures.Check(image.ExePath) : null;
+            var trusted = signature is not null && IsPublisher(signature);
             _judged[processId] = (image.StartTime, trusted);
             if (trusted)
                 log.Info($"TWS pid {processId} ({image.ExePath}) is {signature}");
             else
-                log.Info($"ignoring pid {processId} ({image.ExePath}): {signature}, not by '{Publisher}'. "
+                log.Info($"ignoring pid {processId} ({image.ExePath}): {image.Problem ?? $"{signature}, not by '{Publisher}'"}. "
                          + "Its windows are never read or typed into (--trust-unsigned overrides this).");
             return trusted;
         }

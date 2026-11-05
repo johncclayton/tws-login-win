@@ -68,7 +68,7 @@ static class Program
         {
             var source = CredentialSources.FromSpec(
                 Arg(args, index) ?? throw new FormatException($"{args[0]} needs live, paper, an ini path or op://vault/item."),
-                Environment.GetEnvironmentVariable, new OpCli());
+                Environment.GetEnvironmentVariable, new OpCli(signatures, requireSigned: !trustUnsigned));
             return mode is { } wanted ? CredentialSources.ForMode(source, wanted) : source;
         }
 
@@ -101,6 +101,7 @@ static class Program
                 case "login":
                     var source = Credentials(1);
                     var credentials = source.Load();
+                    log.RedactUser(credentials.User);
                     log.Info($"loaded {credentials} from {source.Description}");
                     var timeouts = new LoginTimeouts(
                         Seconds(args, 2) ?? LoginTimeouts.Default.LoginForm,
@@ -140,6 +141,12 @@ static class Program
         {
             Console.Error.WriteLine($"{ex.Message} (tws-login-win --help)");
             return UsageError;
+        }
+        catch (Exception ex)
+        {
+            // Anything else still ends as an abort: no stack trace, and no crash report holding the credentials.
+            log.Info($"ABORT: unexpected {ex.GetType().Name}: {ex.Message}");
+            return Aborted;
         }
     }
 

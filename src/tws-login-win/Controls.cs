@@ -53,8 +53,12 @@ public sealed record Control(
 
     public IEnumerable<Control> SelfAndDescendants() => Children.SelectMany(c => c.SelfAndDescendants()).Prepend(this);
 
-    /// <summary>For logs: role, name and position. Never the text: a field may hold the user name or the code.</summary>
-    public override string ToString() => $"[{Role}] '{Name}' at {Bounds.X},{Bounds.Y}";
+    /// <summary>
+    /// For logs: role, name and position. Never the text; and a field that may hold typed text shows its name by
+    /// length only, as <see cref="ControlDump"/> does.
+    /// </summary>
+    public override string ToString() =>
+        $"[{Role}] {(MayHoldTypedText ? $"<{Name.Length} chars>" : $"'{ControlTree.MaskDigits(Name)}'")} at {Bounds.X},{Bounds.Y}";
 }
 
 /// <summary>
@@ -80,13 +84,14 @@ public sealed partial class ControlTree(Control root, Action release) : IDisposa
 
     /// <summary>
     /// What the window says: the names of showing labels and the text of showing read-only text. Never the contents of
-    /// a field the user can type into, so the user name and the code are never part of it.
+    /// a field that may hold typed text (see <see cref="Control.MayHoldTypedText"/>), so the user name and the code are
+    /// never part of it.
     /// </summary>
     public string Message() => string.Join(" / ", Showing
         .Select(c => c.Role switch
         {
             Roles.Label => c.Name,
-            Roles.Text when !c.Editable => c.Text ?? "",
+            Roles.Text when !c.MayHoldTypedText => c.Text ?? "",
             _ => "",
         })
         .Select(t => t.Trim())

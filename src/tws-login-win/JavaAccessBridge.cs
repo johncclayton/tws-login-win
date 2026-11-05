@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -79,24 +78,24 @@ sealed class JavaAccessBridge(ISignatures signatures, bool requireSigned) : IAcc
         if (_started)
             return;
         Win32.GetWindowThreadProcessId(window, out var processId);
-        string folder;
-        try
-        {
-            var exe = Process.GetProcessById((int)processId).MainModule?.FileName
-                ?? throw new LoginAbortedException("cannot tell where TWS is installed.");
-            folder = Path.Combine(Path.GetDirectoryName(exe)!, "jre", "bin");
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            throw new LoginAbortedException($"cannot tell where TWS is installed: {ex.Message}");
-        }
+        // Where Windows says the process runs from, not what the process's own memory says.
+        var exe = Win32ProcessImages.ImagePath((int)processId)
+            ?? throw new LoginAbortedException($"cannot tell where TWS (pid {processId}) is installed.");
+        var folder = Path.Combine(Path.GetDirectoryName(exe)!, "jre", "bin");
         var path = Path.Combine(folder, Dll);
         if (!File.Exists(path))
             throw new LoginAbortedException($"no {Dll} in {folder}: this TWS has no Java Access Bridge.");
-        if (requireSigned && signatures.Check(path) is { Valid: false } signature)
-            throw new LoginAbortedException($"{path} is {signature}; not loading it (--trust-unsigned overrides this).");
-        Win32.SetDllDirectory(folder);
-        NativeLibrary.Load(path);
+        // Held from the check until it is loaded, so the file checked is the file loaded.
+        using (var held = Files.Hold(path))
+        {
+            if (requireSigned && signatures.Check(path) is { Valid: false } signature)
+                throw new LoginAbortedException($"{path} is {signature}; not loading it (--trust-unsigned overrides this).");
+            // Its own dependencies come from its folder or System32 only; no process-wide DLL directory is set.
+            var library = NativeLibrary.Load(path, typeof(JavaAccessBridge).Assembly,
+                DllImportSearchPath.UseDllDirectoryForDependencies | DllImportSearchPath.System32);
+            NativeLibrary.SetDllImportResolver(typeof(JavaAccessBridge).Assembly,
+                (name, _, _) => name == Dll ? library : IntPtr.Zero);
+        }
         Native.Windows_run();
         Win32.PumpMessages(StartUp); // the bridge finds the Java VMs through window messages
         _started = true;

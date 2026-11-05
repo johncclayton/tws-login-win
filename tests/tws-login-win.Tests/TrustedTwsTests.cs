@@ -67,6 +67,28 @@ public class TrustedTwsTests
     }
 
     [Fact]
+    public void A_process_not_running_from_the_signed_file_at_its_path_is_left_out()
+    {
+        // E.g. it renamed its own executable and put a copy of the signed one at the old path.
+        _images.Running[Tws] = _images.Running[Tws] with { Problem = "it is not running from the file now at that path" };
+        _tws.Add("Login", "SunAwtFrame", new FakeLoginForm().Build, processId: Tws);
+
+        Assert.Empty(LoginWindows.Lines(Scoped()));
+        Assert.Equal(0, _signatures.Checks);
+        Assert.Contains(_tws.Logged, line => line.StartsWith("ignoring pid 7001") && line.Contains("not running from the file"));
+    }
+
+    [Fact]
+    public void The_executable_is_held_only_while_it_is_judged()
+    {
+        _tws.Add("Login", "SunAwtFrame", new FakeLoginForm().Build, processId: Tws);
+
+        LoginWindows.Lines(Scoped());
+
+        Assert.Equal(1, _images.Released);
+    }
+
+    [Fact]
     public void A_process_that_cannot_be_opened_is_left_out()
     {
         _tws.Add("Login", "SunAwtFrame", new FakeLoginForm().Build, processId: 7003);
@@ -96,7 +118,12 @@ public class TrustedTwsTests
     {
         public Dictionary<int, ProcessImage> Running { get; } = [];
 
-        public ProcessImage? Find(int processId) => Running.GetValueOrDefault(processId);
+        public int Released { get; private set; }
+
+        public DateTime? StartTime(int processId) => Running.GetValueOrDefault(processId)?.StartTime;
+
+        public ProcessImage? Find(int processId) =>
+            Running.GetValueOrDefault(processId) is { } image ? image with { Release = () => Released++ } : null;
     }
 
     sealed class FakeSignatures : ISignatures
@@ -163,5 +190,94 @@ public sealed class AuthenticodeTests : IDisposable
     public void A_missing_file_is_not_valid()
     {
         Assert.False(new Authenticode().Check(Path.Combine(_folder, "none.exe")).Valid);
+    }
+}
+
+/// <summary>Windows' record of real running processes, including one that swaps the file at its own path.</summary>
+public sealed class ProcessImagesTests : IDisposable
+{
+    readonly string _folder = Directory.CreateTempSubdirectory("tws-login-win-img").FullName;
+    readonly List<System.Diagnostics.Process> _started = [];
+
+    public void Dispose()
+    {
+        foreach (var p in _started)
+        {
+            try { p.Kill(); p.WaitForExit(5000); } catch (InvalidOperationException) { }
+            p.Dispose();
+        }
+        Directory.Delete(_folder, recursive: true);
+    }
+
+    System.Diagnostics.Process StartCopyOfPing(string path)
+    {
+        File.Copy(Path.Combine(Environment.SystemDirectory, "PING.EXE"), path);
+        var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path, "-n 30 127.0.0.1")
+        {
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true,
+        })!;
+        _started.Add(process);
+        // Its modules are listed only once it has started up.
+        for (var i = 0; i < 100; i++)
+        {
+            using var image = new Win32ProcessImages().Find(process.Id);
+            if (image is not null)
+                break;
+            Thread.Sleep(50);
+        }
+        return process;
+    }
+
+    [Fact]
+    public void A_running_process_is_found_at_its_own_file()
+    {
+        var path = Path.Combine(_folder, "tws.exe");
+        var process = StartCopyOfPing(path);
+
+        using var image = new Win32ProcessImages().Find(process.Id);
+
+        Assert.NotNull(image);
+        Assert.Null(image.Problem);
+        Assert.Equal(Path.GetFullPath(path), Path.GetFullPath(image.ExePath), ignoreCase: true);
+        Assert.NotNull(new Win32ProcessImages().StartTime(process.Id));
+    }
+
+    [Fact]
+    public void A_process_that_renamed_its_file_and_left_another_at_the_old_path_is_judged_by_its_real_file()
+    {
+        var path = Path.Combine(_folder, "tws.exe");
+        var process = StartCopyOfPing(path);
+        File.Move(path, Path.Combine(_folder, "tws_old.exe")); // Windows lets a running executable be renamed
+        File.Copy(Path.Combine(Environment.SystemDirectory, "PING.EXE"), path); // e.g. the signed TWS, copied
+
+        using var image = new Win32ProcessImages().Find(process.Id);
+
+        // Windows names the file the process really runs from, under its new name: that is the file judged, not the
+        // copy now at the old path.
+        Assert.NotNull(image);
+        Assert.Equal("tws_old.exe", Path.GetFileName(image.ExePath), ignoreCase: true);
+        Assert.Null(image.Problem);
+    }
+
+    [Fact]
+    public void While_held_the_executable_cannot_be_renamed()
+    {
+        var path = Path.Combine(_folder, "tws.exe");
+        var process = StartCopyOfPing(path);
+
+        using (new Win32ProcessImages().Find(process.Id))
+            Assert.ThrowsAny<IOException>(() => File.Move(path, Path.Combine(_folder, "moved.exe")));
+
+        File.Move(path, Path.Combine(_folder, "moved.exe")); // released: allowed again
+    }
+
+    [Fact]
+    public void A_process_that_has_exited_is_not_found()
+    {
+        var process = StartCopyOfPing(Path.Combine(_folder, "tws.exe"));
+        process.Kill();
+        process.WaitForExit();
+
+        Assert.Null(new Win32ProcessImages().Find(process.Id));
     }
 }

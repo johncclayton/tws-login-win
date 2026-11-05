@@ -125,15 +125,38 @@ public sealed class OnePasswordCredentialSource(string itemReference, IOnePasswo
 
 /// <summary>
 /// The <c>op</c> CLI. Unattended use needs a service account (<c>OP_SERVICE_ACCOUNT_TOKEN</c> in the environment)
-/// with access to the item's vault; <c>op</c> picks the token up itself.
+/// with access to the item's vault; <c>op</c> picks the token up itself. <c>op.exe</c> is looked for in the PATH
+/// folders only, never in the current folder or this tool's own (where a download could plant one), and must be
+/// validly signed by AgileBits unless <paramref name="requireSigned"/> is false.
 /// </summary>
-sealed class OpCli : IOnePasswordCli
+sealed class OpCli(ISignatures signatures, bool requireSigned) : IOnePasswordCli
 {
     static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>The organisation 1Password signs <c>op</c> with, ignoring case (seen as "Agilebits").</summary>
+    public const string Publisher = "AgileBits";
+
+    /// <summary>The first <c>op.exe</c> in a fully qualified PATH folder; null when there is none.</summary>
+    public static string? Find(string? path) =>
+        (path ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(folder => folder.Trim('"'))
+            .Where(Path.IsPathFullyQualified)
+            .Select(folder => Path.Combine(folder, "op.exe"))
+            .FirstOrDefault(File.Exists);
+
+    public static bool IsPublisher(Signature signature) =>
+        signature.Valid && signature.Organization is { } org
+                        && org.StartsWith(Publisher, StringComparison.OrdinalIgnoreCase);
+
     public OnePasswordItem GetItem(string vault, string item)
     {
-        var start = new ProcessStartInfo("op")
+        var exe = Find(Environment.GetEnvironmentVariable("PATH"))
+            ?? throw new LoginAbortedException("1Password CLI 'op' not found on PATH.");
+        // Held from the check until op has started, so the file checked is the program run.
+        using var held = Files.Hold(exe);
+        if (requireSigned && signatures.Check(exe) is var signature && !IsPublisher(signature))
+            throw new LoginAbortedException($"{exe} is {signature}, not by '{Publisher}'; not running it (--trust-unsigned overrides this).");
+        var start = new ProcessStartInfo(exe)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,

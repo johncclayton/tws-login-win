@@ -12,6 +12,11 @@ processes' windows are filtered out of the desktop before anything reads them, s
 validly signed too, by anyone: TWS's Java runtime is signed by its vendor (Azul Systems as of TWS 1051), not IBKR.
 Revocation is checked from the local cache only.
 
+The executable judged is the one Windows says the process runs from (`QueryFullProcessImageName`, which follows a
+rename), cross-checked against the file mapped at the image base, and held open while it is judged. Judging the
+path the process reports about itself, or opening the file twice, would let a process rename itself and leave a
+signed copy behind.
+
 ## Considered
 
 - **An install folder** (`C:\Jts` or configured): no signature handling, but any program that can write there, or
@@ -25,5 +30,6 @@ Revocation is checked from the local cache only.
 - An IBKR certificate under another organisation name, or an unsigned TWS build, is refused until the name is
   changed here; `--trust-unsigned` is the way out meanwhile, logged as a warning.
 - Each TWS process is judged once per process start (id and start time), so a reused process id is judged again.
-- It does not defend against code already running as the user with more access than a window: that code can read
-  the 1Password token or the ini file directly. See docs/security-model.md.
+- It does not defend against code already running as the user that goes further than a look-alike window: changing
+  the real TWS's files (C:\Jts is user-writable), answering through the Java Access Bridge, patching memory, or
+  reading the 1Password token or the ini file directly. These are listed in docs/security-model.md.
